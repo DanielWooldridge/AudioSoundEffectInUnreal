@@ -1,0 +1,6 @@
+Delay:
+- Each tap is their own thing that has different settings
+- Interpolation for taps (5-5.1 or something)
+- Modular code
+- TAps are Oscilating, set points but vary between a small value.
+- Fireball charge for taps

@@ -1,0 +1,14 @@
+{
+	"Targets": [
+		{
+			"Name": "AudioCoursework",
+			"Path": "..\\Source\\AudioCoursework.Target.cs",
+			"Type": "Game"
+		},
+		{
+			"Name": "AudioCourseworkEditor",
+			"Path": "..\\Source\\AudioCourseworkEditor.Target.cs",
+			"Type": "Editor"
+		}
+	]
+}
