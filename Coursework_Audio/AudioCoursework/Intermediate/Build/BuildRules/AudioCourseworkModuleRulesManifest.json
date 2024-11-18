@@ -1,8 +1,8 @@
 {
 	"SourceFiles": [
-		"D:\\AbertayWork\\Audio\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework\\AudioCoursework.Build.cs",
-		"D:\\AbertayWork\\Audio\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework.Target.cs",
-		"D:\\AbertayWork\\Audio\\Coursework_Audio\\AudioCoursework\\Source\\AudioCourseworkEditor.Target.cs"
+		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework\\AudioCoursework.Build.cs",
+		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework.Target.cs",
+		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCourseworkEditor.Target.cs"
 	],
-	"EngineVersion": "5.4.4"
+	"EngineVersion": "5.4.3"
 }
