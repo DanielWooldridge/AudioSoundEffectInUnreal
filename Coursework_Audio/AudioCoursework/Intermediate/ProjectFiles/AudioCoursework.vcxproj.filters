@@ -11,6 +11,9 @@
     <None Include="..\..\Source\AudioCourseworkEditor.Target.cs">
       <Filter>Source</Filter>
     </None>
+    <None Include="..\..\.gitattributes" />
+    <None Include="..\..\.gitignore" />
+    <None Include="..\..\.vsconfig" />
     <Filter Include="Config">
       <UniqueIdentifier>{FA535FFB-25E1-3D20-B416-52F9BE21E06E}</UniqueIdentifier>
     </Filter>
@@ -29,6 +32,51 @@
     <None Include="..\..\Config\DefaultInput.ini">
       <Filter>Config</Filter>
     </None>
+    <Filter Include="Plugins">
+      <UniqueIdentifier>{BB38096A-B391-30DC-A0D4-4F3EA6B44507}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\TapDelay">
+      <UniqueIdentifier>{0149B2E5-149F-3D4A-9B54-0E5F15E9C37B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\TapDelay\Source">
+      <UniqueIdentifier>{31DC931F-2E8A-30EC-B6A7-C1A21466078F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\TapDelay\Source\TapDelay">
+      <UniqueIdentifier>{503E244C-E6A1-37DA-8760-D233872E5B16}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\TapDelay\Source\TapDelay\TapDelay.Build.cs">
+      <Filter>Plugins\TapDelay\Source\TapDelay</Filter>
+    </None>
+    <Filter Include="Plugins\TapDelay\Source\TapDelay\Private">
+      <UniqueIdentifier>{BB67DE48-9ADC-3170-B980-52180CFCF24D}</UniqueIdentifier>
+    </Filter>
+    <ClCompile Include="..\..\Plugins\TapDelay\Source\TapDelay\Private\TapDelay.cpp">
+      <Filter>Plugins\TapDelay\Source\TapDelay\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Plugins\TapDelay\Source\TapDelay\Private\TapDelayBPLibrary.cpp">
+      <Filter>Plugins\TapDelay\Source\TapDelay\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Plugins\TapDelay\Source\TapDelay\Private\TapDelayNode.cpp">
+      <Filter>Plugins\TapDelay\Source\TapDelay\Private</Filter>
+    </ClCompile>
+    <Filter Include="Plugins\TapDelay\Source\TapDelay\Public">
+      <UniqueIdentifier>{B6BEFFBC-A1A7-333B-9A85-E129AB4AA30B}</UniqueIdentifier>
+    </Filter>
+    <ClInclude Include="..\..\Plugins\TapDelay\Source\TapDelay\Public\TapDelay.h">
+      <Filter>Plugins\TapDelay\Source\TapDelay\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Plugins\TapDelay\Source\TapDelay\Public\TapDelayBPLibrary.h">
+      <Filter>Plugins\TapDelay\Source\TapDelay\Public</Filter>
+    </ClInclude>
+    <None Include="..\..\Plugins\TapDelay\TapDelay.uplugin">
+      <Filter>Plugins\TapDelay</Filter>
+    </None>
+    <Filter Include="Plugins\TapDelay\Resources">
+      <UniqueIdentifier>{66B6A494-1923-3802-9A98-D7E06975679E}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\TapDelay\Resources\Icon128.png">
+      <Filter>Plugins\TapDelay\Resources</Filter>
+    </None>
     <Filter Include="Source\AudioCoursework">
       <UniqueIdentifier>{5982BF23-46EC-30C2-9F4B-24BA420F6255}</UniqueIdentifier>
     </Filter>
@@ -39,12 +87,6 @@
       <Filter>Source\AudioCoursework</Filter>
     </ClCompile>
     <ClInclude Include="..\..\Source\AudioCoursework\AudioCoursework.h">
-      <Filter>Source\AudioCoursework</Filter>
-    </ClInclude>
-    <ClCompile Include="..\..\Source\AudioCoursework\UCustomDelay.cpp">
-      <Filter>Source\AudioCoursework</Filter>
-    </ClCompile>
-    <ClInclude Include="..\..\Source\AudioCoursework\UCustomDelay.h">
       <Filter>Source\AudioCoursework</Filter>
     </ClInclude>
   </ItemGroup>

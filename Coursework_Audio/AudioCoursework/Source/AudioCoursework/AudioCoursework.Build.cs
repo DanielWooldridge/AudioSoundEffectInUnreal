@@ -8,7 +8,8 @@ public class AudioCoursework : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", 
+			"MetasoundGraphCore", "MetasoundEngine", "MetasoundFrontend", "MetasoundStandardNodes", "SignalProcessing" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
