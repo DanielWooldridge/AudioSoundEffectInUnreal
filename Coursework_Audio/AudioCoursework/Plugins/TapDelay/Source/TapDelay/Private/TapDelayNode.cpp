@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "Internationalization/Text.h"
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundNodeRegistrationMacro.h"
@@ -13,211 +11,141 @@
 #include "MetasoundStandardNodesCategories.h"
 #include "MetasoundFacade.h"
 
-#define LOCTEXT_NAMESPACE "MetasoundStandardNodesTapDelay"
+#define LOCTEXT_NAMESPACE "MetasoundStandardNodesMultiTapDelay"
 
 namespace Metasound
 {
 	namespace TapDelay
 	{
 		METASOUND_PARAM(InParamAudioInput, "In", "Audio input.")
-		METASOUND_PARAM(InParamDelayTime, "Delay Time", "The amount of time to delay the audio.")
-		METASOUND_PARAM(InParamDryLevel, "Dry Level", "The dry level of the delay.")
-		METASOUND_PARAM(InParamWetLevel, "Wet Level", "The wet level of the delay.")
-		METASOUND_PARAM(InParamFeedbackAmount, "Feedback", "Feedback amount.")
-		METASOUND_PARAM(InParamMaxDelayTime, "Max Delay Time", "The maximum amount of time to delay the audio.")
-		METASOUND_PARAM(OutParamAudio, "Out", "Audio output.")
-
-		static constexpr float MinMaxDelaySeconds = 0.001f;
-		static constexpr float MaxMaxDelaySeconds = 1000.f;
-		static constexpr float DefaultMaxDelaySeconds = 5.0f;
+			METASOUND_PARAM(InParamTapCount, "Tap Count", "Number of delay taps.")
+			METASOUND_PARAM(InParamDryLevel, "Dry Level", "The dry level of the delay.")
+			METASOUND_PARAM(InParamWetLevel, "Wet Level", "The wet level of the delay.")
+			METASOUND_PARAM(InParamFeedbackAmount, "Feedback", "Feedback amount.")
+			METASOUND_PARAM(InParamDifferentiator, "Differentiator", "Identifier to distinguish this node.")
+			METASOUND_PARAM(OutParamAudio, "Out", "Audio output.")
 	}
 
-	class FTapDelay : public TExecutableOperator<FTapDelay>
+	class FMultiTapDelay : public TExecutableOperator<FMultiTapDelay>
 	{
 	public:
-
 		static const FNodeClassMetadata& GetNodeInfo();
 		static const FVertexInterface& GetVertexInterface();
 		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
 
-		FTapDelay(const FBuildOperatorParams& InParams, 
-			const FAudioBufferReadRef& InAudioInput, 
-			const FTimeReadRef& InDelayTime, 
-			const FFloatReadRef& InDryLevel, 
-			const FFloatReadRef& InWetLevel, 
+		FMultiTapDelay(const FBuildOperatorParams& InParams,
+			const FAudioBufferReadRef& InAudioInput,
+			int32 InTapCount,
+			const FFloatReadRef& InDryLevel,
+			const FFloatReadRef& InWetLevel,
 			const FFloatReadRef& InFeedback,
-			float InMaxDelayTimeSeconds);
+			const FString& InDifferentiator);
 
 		virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override;
-		virtual FDataReferenceCollection GetInputs() const override;
-		virtual FDataReferenceCollection GetOutputs() const override;
-		void Reset(const IOperator::FResetParams& InParams);
 		void Execute();
 
 	private:
-		float GetInputDelayTimeMsec() const;
-
-		// The input audio buffer
 		FAudioBufferReadRef AudioInput;
-
-		// The amount of delay time
-		FTimeReadRef DelayTime;
-
-		// The dry level
-		FFloatReadRef DryLevel;
-
-		// The wet level
-		FFloatReadRef WetLevel;
-
-		// The feedback amount
-		FFloatReadRef Feedback;
-
-		// The audio output
 		FAudioBufferWriteRef AudioOutput;
 
-		// The internal delay buffer
-		Audio::FDelay DelayBuffer;
+		int32 TapCount;                 // Number of taps
+	
+		FFloatReadRef DryLevel;
+		FFloatReadRef WetLevel;
+		FFloatReadRef Feedback;
 
-		// The previous delay time
-		float PrevDelayTimeMsec = 0.f;
-
-		// Feedback sample
-		float FeedbackSample = 0.f;
-
-		// Maximum delay time
-		float MaxDelayTimeSeconds = TapDelay::DefaultMaxDelaySeconds;
+		TArray<Audio::FDelay> DelayBuffers; // A delay buffer for each tap
+		FString Differentiator; // Visual differentiator, not used in processing
 	};
 
-	FTapDelay::FTapDelay(const FBuildOperatorParams& InParams,
+	FMultiTapDelay::FMultiTapDelay(const FBuildOperatorParams& InParams,
 		const FAudioBufferReadRef& InAudioInput,
-		const FTimeReadRef& InDelayTime,
+		int32 InTapCount,
 		const FFloatReadRef& InDryLevel,
 		const FFloatReadRef& InWetLevel,
 		const FFloatReadRef& InFeedback,
-		float InMaxDelayTimeSeconds)
-
-		: AudioInput(InAudioInput)
-		, DelayTime(InDelayTime)
-		, DryLevel(InDryLevel)
-		, WetLevel(InWetLevel)
-		, Feedback(InFeedback)
-		, AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings))
+		const FString& InDifferentiator)
+		: AudioInput(InAudioInput),
+		TapCount(InTapCount),
+		DryLevel(InDryLevel),
+		WetLevel(InWetLevel),
+		Feedback(InFeedback),
+		AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings)),
+		Differentiator(InDifferentiator)
 	{
-		MaxDelayTimeSeconds = FMath::Clamp(InMaxDelayTimeSeconds, TapDelay::MinMaxDelaySeconds, TapDelay::MaxMaxDelaySeconds);
-
-		Reset(InParams);
+		// Initialize delay buffers
+		const float SampleRate = InParams.OperatorSettings.GetSampleRate();
+		for (int32 TapIndex = 0; TapIndex < TapCount; ++TapIndex)
+		{
+			float TapDelayTime = 5.0f * ((TapIndex + 1) / static_cast<float>(TapCount)); // Evenly spaced taps
+			Audio::FDelay NewDelay;
+			NewDelay.Init(SampleRate, 5.0f); // Max delay time of 5 seconds
+			NewDelay.SetDelayMsec(TapDelayTime * 1000.0f); // Convert seconds to milliseconds
+			DelayBuffers.Add(NewDelay);
+		}
 	}
 
-
-	void FTapDelay::BindInputs(FInputVertexInterfaceData& InOutVertexData)
+	void FMultiTapDelay::BindInputs(FInputVertexInterfaceData& InOutVertexData)
 	{
 		using namespace TapDelay;
 
 		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamAudioInput), AudioInput);
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamDelayTime), DelayTime);
 		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamDryLevel), DryLevel);
 		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamWetLevel), WetLevel);
 		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamFeedbackAmount), Feedback);
-		InOutVertexData.SetValue(METASOUND_GET_PARAM_NAME(InParamMaxDelayTime), FTime::FromSeconds(MaxDelayTimeSeconds));
 	}
 
-	void FTapDelay::BindOutputs(FOutputVertexInterfaceData& InOutVertexData)
+	void FMultiTapDelay::BindOutputs(FOutputVertexInterfaceData& InOutVertexData)
 	{
 		using namespace TapDelay;
 		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(OutParamAudio), AudioOutput);
 	}
 
-	FDataReferenceCollection FTapDelay::GetInputs() const
+	void FMultiTapDelay::Execute()
 	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	FDataReferenceCollection FTapDelay::GetOutputs() const
-	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	float FTapDelay::GetInputDelayTimeMsec() const
-	{
-		// Clamp the delay time to the max delay allowed
-		return 1000.0f * FMath::Clamp((float)DelayTime->GetSeconds(), 0.0f, MaxDelayTimeSeconds);
-	}
-
-	void FTapDelay::Reset(const IOperator::FResetParams& InParams)
-	{
-		FeedbackSample = 0.f;
-		PrevDelayTimeMsec = GetInputDelayTimeMsec();
-
-		DelayBuffer.Init(InParams.OperatorSettings.GetSampleRate(), MaxDelayTimeSeconds);
-		DelayBuffer.SetDelayMsec(PrevDelayTimeMsec);
-
-		AudioOutput->Zero();
-	}
-
-	void FTapDelay::Execute()
-	{
-		// Get clamped delay time
-		float CurrentInputDelayTime = GetInputDelayTimeMsec();
-
-		// Check to see if our delay amount has changed
-		if (!FMath::IsNearlyEqual(PrevDelayTimeMsec, CurrentInputDelayTime))
-		{
-			PrevDelayTimeMsec = CurrentInputDelayTime;
-			DelayBuffer.SetEasedDelayMsec(PrevDelayTimeMsec);
-		}
-
 		const float* InputAudio = AudioInput->GetData();
-
 		float* OutputAudio = AudioOutput->GetData();
 		int32 NumFrames = AudioInput->Num();
 
-		// Clamp the feedback amount to make sure it's bounded. Clamp to a number slightly less than 1.0
-		float FeedbackAmount = FMath::Clamp(*Feedback, 0.0f, 1.0f - SMALL_NUMBER);
-		float CurrentDryLevel = FMath::Clamp(*DryLevel, 0.0f, 1.0f);
-		float CurrentWetLevel = FMath::Clamp(*WetLevel, 0.0f, 1.0f);
+		const float DryLevelValue = FMath::Clamp(*DryLevel, 0.0f, 1.0f);
+		const float WetLevelValue = FMath::Clamp(*WetLevel, 0.0f, 1.0f);
+		const float FeedbackValue = FMath::Clamp(*Feedback, 0.0f, 1.0f);
 
-		if (FMath::IsNearlyZero(FeedbackAmount))
+		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
 		{
-			FeedbackSample = 0.0f;
+			float DrySignal = DryLevelValue * InputAudio[FrameIndex];
+			float WetSignal = 0.0f;
 
-			for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+			// Process each tap
+			for (int32 TapIndex = 0; TapIndex < DelayBuffers.Num(); ++TapIndex)
 			{
-				OutputAudio[FrameIndex] = CurrentWetLevel * DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex]) + CurrentDryLevel * InputAudio[FrameIndex];
+				Audio::FDelay& DelayBuffer = DelayBuffers[TapIndex];
+
+				// Process delay for this tap
+				float DelayedSample = DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex] + FeedbackValue * WetSignal);
+
+				// Accumulate the wet signal
+				WetSignal += DelayedSample;
 			}
-		}
-		else
-		{
-			// There is some amount of feedback so we do the feedback mixing
-			for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
-			{
-				OutputAudio[FrameIndex] = CurrentWetLevel * DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex] + FeedbackSample * FeedbackAmount) + CurrentDryLevel * InputAudio[FrameIndex];
-				FeedbackSample = OutputAudio[FrameIndex];
-			}
+
+			// Output the mix of dry and wet signals
+			OutputAudio[FrameIndex] = DrySignal + WetLevelValue * WetSignal;
 		}
 	}
 
-	const FVertexInterface& FTapDelay::GetVertexInterface()
+	const FVertexInterface& FMultiTapDelay::GetVertexInterface()
 	{
 		using namespace TapDelay;
-
-		FDataVertexMetadata MaxDelayTimeMetadata = METASOUND_GET_PARAM_METADATA(InParamMaxDelayTime);
-		MaxDelayTimeMetadata.bIsAdvancedDisplay = true;
 
 		static const FVertexInterface Interface(
 			FInputVertexInterface(
 				TInputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamAudioInput)),
-				TInputDataVertex<FTime>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamDelayTime), 1.0f),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamDryLevel), 0.0f),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamWetLevel), 1.0f),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamFeedbackAmount), 0.0f),
-				TInputConstructorVertex<FTime>(METASOUND_GET_PARAM_NAME(InParamMaxDelayTime), MaxDelayTimeMetadata, DefaultMaxDelaySeconds)
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamTapCount), 4), // Default to 4 taps
+				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamDryLevel)),
+				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamWetLevel)),
+				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamFeedbackAmount)),
+				TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamDifferentiator))
 			),
 			FOutputVertexInterface(
 				TOutputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(OutParamAudio))
@@ -227,58 +155,53 @@ namespace Metasound
 		return Interface;
 	}
 
-	const FNodeClassMetadata& FTapDelay::GetNodeInfo()
+	const FNodeClassMetadata& FMultiTapDelay::GetNodeInfo()
 	{
 		auto InitNodeInfo = []() -> FNodeClassMetadata
-		{
-			FNodeClassMetadata Info;
-			Info.ClassName = { StandardNodes::Namespace, "TapDelay", StandardNodes::AudioVariant };
-			Info.MajorVersion = 1;
-			Info.MinorVersion = 1;
-			Info.DisplayName = METASOUND_LOCTEXT("DelayNode_DisplayName", "TapDelay");
-			Info.Description = METASOUND_LOCTEXT("DelayNode_Description", "Delays an audio buffer by the specified amount.");
-			Info.Author = PluginAuthor;
-			Info.PromptIfMissing = PluginNodeMissingPrompt;
-			Info.DefaultInterface = GetVertexInterface();
-			Info.CategoryHierarchy.Emplace(NodeCategories::Delays);
-			return Info;
-		};
+			{
+				FNodeClassMetadata Info;
+				Info.ClassName = { StandardNodes::Namespace, "TapDelay", StandardNodes::AudioVariant };
+				Info.MajorVersion = 1;
+				Info.MinorVersion = 1;
+				Info.DisplayName = METASOUND_LOCTEXT("DelayNode_DisplayName", "TapDelay");
+				Info.Description = METASOUND_LOCTEXT("DelayNode_Description", "Delays an audio buffer by the specified amount.");
+				Info.Author = PluginAuthor;
+				Info.PromptIfMissing = PluginNodeMissingPrompt;
+				Info.DefaultInterface = GetVertexInterface();
+				Info.CategoryHierarchy.Emplace(NodeCategories::Delays);
+				return Info;
+			};
 
 		static const FNodeClassMetadata Info = InitNodeInfo();
-
 		return Info;
 	}
 
-	TUniquePtr<IOperator> FTapDelay::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
+	TUniquePtr<IOperator> FMultiTapDelay::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 	{
 		using namespace TapDelay;
 
 		const FInputVertexInterfaceData& InputData = InParams.InputData;
 
 		FAudioBufferReadRef AudioIn = InputData.GetOrConstructDataReadReference<FAudioBuffer>(METASOUND_GET_PARAM_NAME(InParamAudioInput), InParams.OperatorSettings);
-		FTimeReadRef DelayTime = InputData.GetOrCreateDefaultDataReadReference<FTime>(METASOUND_GET_PARAM_NAME(InParamDelayTime), InParams.OperatorSettings);
+		int32 TapCount = *InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(InParamTapCount), InParams.OperatorSettings);
 		FFloatReadRef DryLevel = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamDryLevel), InParams.OperatorSettings);
 		FFloatReadRef WetLevel = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamWetLevel), InParams.OperatorSettings);
 		FFloatReadRef Feedback = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamFeedbackAmount), InParams.OperatorSettings);
-		FTime MaxDelayTime = InputData.GetOrCreateDefaultValue<FTime>(METASOUND_GET_PARAM_NAME(InParamMaxDelayTime), InParams.OperatorSettings);
+		FString Differentiator = *InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(InParamDifferentiator), InParams.OperatorSettings);
 
-		return MakeUnique<FTapDelay>(InParams, AudioIn, DelayTime, DryLevel, WetLevel, Feedback, MaxDelayTime.GetSeconds());
+		return MakeUnique<FMultiTapDelay>(InParams, AudioIn, TapCount, DryLevel, WetLevel, Feedback, Differentiator);
 	}
 
-	class FTapDelayNode : public FNodeFacade
+	class FMultiTapDelayNode : public FNodeFacade
 	{
 	public:
-		/**
-		 * Constructor used by the Metasound Frontend.
-		 */
-		FTapDelayNode(const FNodeInitData& InitData)
-			: FNodeFacade(InitData.InstanceName, InitData.InstanceID, TFacadeOperatorClass<FTapDelay>())
+		FMultiTapDelayNode(const FNodeInitData& InitData)
+			: FNodeFacade(InitData.InstanceName, InitData.InstanceID, TFacadeOperatorClass<FMultiTapDelay>())
 		{
 		}
 	};
 
-
-	METASOUND_REGISTER_NODE(FTapDelayNode)
+	METASOUND_REGISTER_NODE(FMultiTapDelayNode)
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -1,9 +1,9 @@
 {
 	"SourceFiles": [
-		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework\\AudioCoursework.Build.cs",
-		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Plugins\\TapDelay\\Source\\TapDelay\\TapDelay.Build.cs",
-		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework.Target.cs",
-		"M:\\GitHub\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCourseworkEditor.Target.cs"
+		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework\\AudioCoursework.Build.cs",
+		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Plugins\\TapDelay\\Source\\TapDelay\\TapDelay.Build.cs",
+		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework.Target.cs",
+		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCourseworkEditor.Target.cs"
 	],
-	"EngineVersion": "5.4.3"
+	"EngineVersion": "5.4.4"
 }

@@ -8,6 +8,6 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = AudioCourseworkModuleRules
-build_property.ProjectDir = M:\GitHub\Audio\AudioSoundEffectInUnreal\Coursework_Audio\AudioCoursework\Intermediate\Build\BuildRulesProjects\AudioCourseworkModuleRules\
+build_property.ProjectDir = C:\Users\dansk\Audio\AudioSoundEffectInUnreal\Coursework_Audio\AudioCoursework\Intermediate\Build\BuildRulesProjects\AudioCourseworkModuleRules\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
