@@ -35,9 +35,60 @@
     <Filter Include="Plugins">
       <UniqueIdentifier>{BB38096A-B391-30DC-A0D4-4F3EA6B44507}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Plugins\Granulator">
+      <UniqueIdentifier>{009DA974-07B3-315B-A782-5D93DE89135A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\Granulator\Source">
+      <UniqueIdentifier>{7307E8CB-0164-31DE-B60E-DA855B206285}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\Granulator\Source\Granulator">
+      <UniqueIdentifier>{86ACAF19-7122-314C-9A1F-7BC3F955B036}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\Granulator\Source\Granulator\Granulator.Build.cs">
+      <Filter>Plugins\Granulator\Source\Granulator</Filter>
+    </None>
+    <Filter Include="Plugins\Granulator\Source\Granulator\Private">
+      <UniqueIdentifier>{B69FE8F2-A325-3944-B8B4-719A6C6865B1}</UniqueIdentifier>
+    </Filter>
+    <ClCompile Include="..\..\Plugins\Granulator\Source\Granulator\Private\Granulator.cpp">
+      <Filter>Plugins\Granulator\Source\Granulator\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Plugins\Granulator\Source\Granulator\Private\GranulatorBPLibrary.cpp">
+      <Filter>Plugins\Granulator\Source\Granulator\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Plugins\Granulator\Source\Granulator\Private\GranulatorNode.cpp">
+      <Filter>Plugins\Granulator\Source\Granulator\Private</Filter>
+    </ClCompile>
+    <Filter Include="Plugins\Granulator\Source\Granulator\Public">
+      <UniqueIdentifier>{BB57470D-B9BD-3682-9748-469B7DD27525}</UniqueIdentifier>
+    </Filter>
+    <ClInclude Include="..\..\Plugins\Granulator\Source\Granulator\Public\Granulator.h">
+      <Filter>Plugins\Granulator\Source\Granulator\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Plugins\Granulator\Source\Granulator\Public\GranulatorBPLibrary.h">
+      <Filter>Plugins\Granulator\Source\Granulator\Public</Filter>
+    </ClInclude>
+    <None Include="..\..\Plugins\Granulator\Granulator.uplugin">
+      <Filter>Plugins\Granulator</Filter>
+    </None>
+    <Filter Include="Plugins\Granulator\Resources">
+      <UniqueIdentifier>{3C88A3B4-52C3-3467-A120-4F6BF237EE6D}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\Granulator\Resources\Icon128.png">
+      <Filter>Plugins\Granulator\Resources</Filter>
+    </None>
     <Filter Include="Plugins\TapDelay">
       <UniqueIdentifier>{0149B2E5-149F-3D4A-9B54-0E5F15E9C37B}</UniqueIdentifier>
     </Filter>
+    <None Include="..\..\Plugins\TapDelay\TapDelay.uplugin">
+      <Filter>Plugins\TapDelay</Filter>
+    </None>
+    <Filter Include="Plugins\TapDelay\Resources">
+      <UniqueIdentifier>{66B6A494-1923-3802-9A98-D7E06975679E}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\TapDelay\Resources\Icon128.png">
+      <Filter>Plugins\TapDelay\Resources</Filter>
+    </None>
     <Filter Include="Plugins\TapDelay\Source">
       <UniqueIdentifier>{31DC931F-2E8A-30EC-B6A7-C1A21466078F}</UniqueIdentifier>
     </Filter>
@@ -68,15 +119,6 @@
     <ClInclude Include="..\..\Plugins\TapDelay\Source\TapDelay\Public\TapDelayBPLibrary.h">
       <Filter>Plugins\TapDelay\Source\TapDelay\Public</Filter>
     </ClInclude>
-    <None Include="..\..\Plugins\TapDelay\TapDelay.uplugin">
-      <Filter>Plugins\TapDelay</Filter>
-    </None>
-    <Filter Include="Plugins\TapDelay\Resources">
-      <UniqueIdentifier>{66B6A494-1923-3802-9A98-D7E06975679E}</UniqueIdentifier>
-    </Filter>
-    <None Include="..\..\Plugins\TapDelay\Resources\Icon128.png">
-      <Filter>Plugins\TapDelay\Resources</Filter>
-    </None>
     <Filter Include="Source\AudioCoursework">
       <UniqueIdentifier>{5982BF23-46EC-30C2-9F4B-24BA420F6255}</UniqueIdentifier>
     </Filter>

@@ -1,6 +1,7 @@
 {
 	"SourceFiles": [
 		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework\\AudioCoursework.Build.cs",
+		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Plugins\\Granulator\\Source\\Granulator\\Granulator.Build.cs",
 		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Plugins\\TapDelay\\Source\\TapDelay\\TapDelay.Build.cs",
 		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCoursework.Target.cs",
 		"C:\\Users\\dansk\\Audio\\AudioSoundEffectInUnreal\\Coursework_Audio\\AudioCoursework\\Source\\AudioCourseworkEditor.Target.cs"
