@@ -15,226 +15,198 @@
 
 namespace Metasound
 {
-	namespace Granulator
-	{
-		METASOUND_PARAM(InParamAudioInput, "In", "Audio input.")
-			METASOUND_PARAM(InParamTapCount, "Tap Count", "Number of delay taps.")
-			METASOUND_PARAM(InParamDryLevel, "Dry Level", "The dry level of the delay.")
-			METASOUND_PARAM(InParamWetLevel, "Wet Level", "The wet level of the delay.")
-			METASOUND_PARAM(InParamFeedbackAmount, "Feedback", "Feedback amount.")
-			METASOUND_PARAM(InParamLFOFrequency, "LFO Frequency", "Oscillation frequency for all taps.")
-			METASOUND_PARAM(InParamLFODepth, "LFO Depth", "Oscillation depth for all taps.")
-			METASOUND_PARAM(InParamDifferentiator, "Differentiator", "Identifier to distinguish this node.")
-			METASOUND_PARAM(OutParamAudio, "Out", "Audio output.")
-	}
+    namespace Granulator
+    {
+        METASOUND_PARAM(InParamAudioInput, "In", "Audio input.")
+            METASOUND_PARAM(InParamGrainSize, "Grain Size", "Size of each grain in milliseconds.")
+            METASOUND_PARAM(OutParamAudio, "Out", "Audio output.")
+    }
 
-	class FGranulator : public TExecutableOperator<FGranulator>
-	{
-	public:
-		static const FNodeClassMetadata& GetNodeInfo();
-		static const FVertexInterface& GetVertexInterface();
-		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
+    class FGranulator : public TExecutableOperator<FGranulator>
+    {
+    public:
+        static const FNodeClassMetadata& GetNodeInfo();
+        static const FVertexInterface& GetVertexInterface();
+        static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
 
-		FGranulator(const FBuildOperatorParams& InParams,
-			const FAudioBufferReadRef& InAudioInput,
-			int32 InTapCount,
-			const FFloatReadRef& InDryLevel,
-			const FFloatReadRef& InWetLevel,
-			const FFloatReadRef& InFeedback,
-			const FFloatReadRef& InLFOFrequency,
-			const FFloatReadRef& InLFODepth,
-			const FString& InDifferentiator);
+        FGranulator(const FBuildOperatorParams& InParams,
+            const FAudioBufferReadRef& InAudioInput,
+            const FFloatReadRef& InGrainSize);
 
-		virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
-		virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override;
-		void Execute();
+        virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
+        virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override;
+        void Execute();
 
-	private:
-		FAudioBufferReadRef AudioInput;
-		FAudioBufferWriteRef AudioOutput;
+    private:
+        FAudioBufferReadRef AudioInput;
+        FAudioBufferWriteRef AudioOutput;
+        FFloatReadRef GrainSize;   // Grain size in milliseconds
 
-		int32 TapCount;
-		FFloatReadRef DryLevel;
-		FFloatReadRef WetLevel;
-		FFloatReadRef Feedback;
-		FFloatReadRef LFOFrequency;
-		FFloatReadRef LFODepth;
+        TArray<float> Envelope;    // Envelope to smooth grains
+        int32 GrainSizeInFrames;  // Grain size in frames
 
-		TArray<Audio::FDelay> DelayBuffers;
-		TArray<float> BaseDelayTimes;
-		TArray<float> LFOPhases;
+        void InitializeEnvelope(int32 NumFrames);
+    };
 
-		FString Differentiator;
-	};
+    FGranulator::FGranulator(const FBuildOperatorParams& InParams,
+        const FAudioBufferReadRef& InAudioInput,
+        const FFloatReadRef& InGrainSize)
+        : AudioInput(InAudioInput),
+        GrainSize(InGrainSize),
+        AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings))
+    {
+        // Calculate grain size in frames
+        const float SampleRate = InParams.OperatorSettings.GetSampleRate();
+        GrainSizeInFrames = FMath::RoundToInt((*GrainSize / 1000.0f) * SampleRate);
 
-	FGranulator::FGranulator(const FBuildOperatorParams& InParams,
-		const FAudioBufferReadRef& InAudioInput,
-		int32 InTapCount,
-		const FFloatReadRef& InDryLevel,
-		const FFloatReadRef& InWetLevel,
-		const FFloatReadRef& InFeedback,
-		const FFloatReadRef& InLFOFrequency,
-		const FFloatReadRef& InLFODepth,
-		const FString& InDifferentiator)
-		: AudioInput(InAudioInput),
-		TapCount(InTapCount),
-		DryLevel(InDryLevel),
-		WetLevel(InWetLevel),
-		Feedback(InFeedback),
-		LFOFrequency(InLFOFrequency),
-		LFODepth(InLFODepth),
-		AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings)),
-		Differentiator(InDifferentiator)
-	{
-		const float SampleRate = InParams.OperatorSettings.GetSampleRate();
-		for (int32 TapIndex = 0; TapIndex < TapCount; ++TapIndex)
-		{
-			float TapDelayTime = 5.0f * ((TapIndex + 1) / static_cast<float>(TapCount));
-			Audio::FDelay NewDelay;
-			NewDelay.Init(SampleRate, 5.0f);
-			NewDelay.SetDelayMsec(TapDelayTime * 1000.0f);
-			DelayBuffers.Add(NewDelay);
+        // Initialize the envelope
+        InitializeEnvelope(GrainSizeInFrames);
+    }
 
-			BaseDelayTimes.Add(TapDelayTime * 1000.0f);
-			LFOPhases.Add(0.0f);
-		}
-	}
+    void FGranulator::InitializeEnvelope(int32 NumFrames)
+    {
+        Envelope.SetNum(NumFrames);
+        for (int32 i = 0; i < NumFrames; ++i)
+        {
+            // Hanning window envelope
+            Envelope[i] = 0.5f * (1.0f - FMath::Cos(2.0f * PI * i / (NumFrames - 1)));
+        }
+    }
 
-	void FGranulator::BindInputs(FInputVertexInterfaceData& InOutVertexData)
-	{
-		using namespace Granulator;
+    void FGranulator::BindInputs(FInputVertexInterfaceData& InOutVertexData)
+    {
+        using namespace Granulator;
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamAudioInput), AudioInput);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamGrainSize), GrainSize);
+    }
 
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamAudioInput), AudioInput);
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamDryLevel), DryLevel);
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamWetLevel), WetLevel);
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamFeedbackAmount), Feedback);
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamLFOFrequency), LFOFrequency);
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamLFODepth), LFODepth);
-	}
+    void FGranulator::BindOutputs(FOutputVertexInterfaceData& InOutVertexData)
+    {
+        using namespace Granulator;
+        InOutVertexData.BindWriteVertex(METASOUND_GET_PARAM_NAME(OutParamAudio), AudioOutput);
+    }
 
-	void FGranulator::BindOutputs(FOutputVertexInterfaceData& InOutVertexData)
-	{
-		using namespace Granulator;
-		InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(OutParamAudio), AudioOutput);
-	}
+    void FGranulator::Execute()
+    {
+        const float* InputAudio = AudioInput->GetData();
+    float* OutputAudio = AudioOutput->GetData();
+    int32 NumFrames = AudioInput->Num();
 
-	void FGranulator::Execute()
-	{
-		const float* InputAudio = AudioInput->GetData();
-		float* OutputAudio = AudioOutput->GetData();
-		int32 NumFrames = AudioInput->Num();
+    // Clear the output buffer
+    FMemory::Memset(OutputAudio, 0, NumFrames * sizeof(float));
 
-		const float DryLevelValue = FMath::Clamp(*DryLevel, 0.0f, 1.0f);
-		const float WetLevelValue = FMath::Clamp(*WetLevel, 0.0f, 1.0f);
-		const float FeedbackValue = FMath::Clamp(*Feedback, 0.0f, 1.0f);
-		const float LFOFrequencyValue = FMath::Clamp(*LFOFrequency, 0.0f, 20.0f);
-		const float LFODepthValue = FMath::Clamp(*LFODepth, 0.0f, 100.0f);
+    const int32 HalfGrainSizeInFrames = GrainSizeInFrames / 2; // For 50% overlap
+    const int32 RandomOffsetRange = FMath::RoundToInt(HalfGrainSizeInFrames * 0.5f); // ±25% of the grain size
+    const float RandomPitchRange = 0.5f; // Up to ±50% pitch variation
 
-		const float SampleRate = 48000.0f;
+    int32 GrainOffset = 0;
 
-		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
-		{
-			float DrySignal = DryLevelValue * InputAudio[FrameIndex];
-			float WetSignal = 0.0f;
+    while (GrainOffset < NumFrames)
+    {
+        // Calculate random offset within a limited range
+        int32 RandomOffset = FMath::RandRange(-RandomOffsetRange, RandomOffsetRange);
+        int32 AdjustedGrainStart = FMath::Clamp(GrainOffset + RandomOffset, 0, NumFrames - GrainSizeInFrames);
 
-			for (int32 TapIndex = 0; TapIndex < DelayBuffers.Num(); ++TapIndex)
-			{
-				Audio::FDelay& DelayBuffer = DelayBuffers[TapIndex];
+        // Apply random pitch shift factor for this grain
+        float RandomPitchFactor = 1.0f + FMath::RandRange(-RandomPitchRange, RandomPitchRange);
 
-				float LFOValue = LFODepthValue * FMath::Sin(2.0f * PI * LFOPhases[TapIndex]);
+        int32 GrainEnd = FMath::Min(AdjustedGrainStart + GrainSizeInFrames, NumFrames);
+        int32 GrainLength = GrainEnd - AdjustedGrainStart;
 
-				LFOPhases[TapIndex] += LFOFrequencyValue / SampleRate;
-				if (LFOPhases[TapIndex] >= 1.0f)
-				{
-					LFOPhases[TapIndex] -= 1.0f;
-				}
+        for (int32 i = 0; i < GrainLength; ++i)
+        {
+            int32 GlobalIndex = GrainOffset + i;
+            float EnvelopeValue = (i < Envelope.Num()) ? Envelope[i] : 1.0f;
 
-				float ModulatedDelayTime = BaseDelayTimes[TapIndex] + LFOValue;
-				DelayBuffer.SetDelayMsec(FMath::Clamp(ModulatedDelayTime, 0.0f, 5000.0f));
+            // Calculate resampled input index for pitch shifting
+            float ResampledIndex = AdjustedGrainStart + i / RandomPitchFactor;
+            int32 InputIndex = FMath::Clamp(FMath::FloorToInt(ResampledIndex), 0, NumFrames - 2);
+            float InterpolationFactor = ResampledIndex - InputIndex;
 
-				float DelayedSample = DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex] + FeedbackValue * WetSignal);
-				WetSignal += DelayedSample;
+            // Interpolate between samples
+            float Sample0 = InputAudio[InputIndex];
+            float Sample1 = InputAudio[InputIndex + 1];
+            float ResampledValue = FMath::Lerp(Sample0, Sample1, InterpolationFactor);
 
-				//UE_LOG(LogTemp, Warning, TEXT("TapIndex: %d, LFOValue: %f, ModulatedDelayTime: %f"), TapIndex, LFOValue, ModulatedDelayTime);
+            // Apply envelope
+            float GrainSample = ResampledValue * EnvelopeValue;
 
-			}
+            // Add stereo panning (alternate between left and right)
+            float Pan = (FMath::RandBool()) ? 1.0f : -1.0f; // Randomly pan left (-1) or right (+1)
+            GrainSample *= (Pan > 0 ? 1.0f : 0.8f); // Slight bias to the louder channel
 
-			OutputAudio[FrameIndex] = DrySignal + WetLevelValue * WetSignal;
-		}
-	}
+            // Add to output using overlap-add
+            if (GlobalIndex < NumFrames)
+            {
+                OutputAudio[GlobalIndex] += GrainSample;
+            }
+        }
 
-	const FVertexInterface& FGranulator::GetVertexInterface()
-	{
-		using namespace Granulator;
+        // Move to the next grain
+        GrainOffset += HalfGrainSizeInFrames;
+    }
+    }
 
-		static const FVertexInterface Interface(
-			FInputVertexInterface(
-				TInputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamAudioInput)),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamTapCount), 4),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamDryLevel)),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamWetLevel)),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamFeedbackAmount)),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamLFOFrequency)),
-				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamLFODepth)),
-				TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamDifferentiator))
-			),
-			FOutputVertexInterface(
-				TOutputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(OutParamAudio))
-			)
-		);
+    const FVertexInterface& FGranulator::GetVertexInterface()
+    {
+        using namespace Granulator;
 
-		return Interface;
-	}
+        static const FVertexInterface Interface(
+            FInputVertexInterface(
+                TInputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamAudioInput)),
+                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamGrainSize), 50.0f) // Default grain size = 50ms
+            ),
+            FOutputVertexInterface(
+                TOutputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(OutParamAudio)) // Audio output
+            )
+        );
 
-	const FNodeClassMetadata& FGranulator::GetNodeInfo()
-	{
-		auto InitNodeInfo = []() -> FNodeClassMetadata
-			{
-				FNodeClassMetadata Info;
-				Info.ClassName = { StandardNodes::Namespace, "Granulator", StandardNodes::AudioVariant };
-				Info.MajorVersion = 1;
-				Info.MinorVersion = 2;
-				Info.DisplayName = METASOUND_LOCTEXT("DelayNode_DisplayName", "Granulator");
-				Info.Description = METASOUND_LOCTEXT("DelayNode_Description", "GRANULATION");
-				Info.Author = PluginAuthor;
-				Info.PromptIfMissing = PluginNodeMissingPrompt;
-				Info.DefaultInterface = GetVertexInterface();
-				Info.CategoryHierarchy.Emplace(NodeCategories::Delays);
-				return Info;
-			};
+        return Interface;
+    }
 
-		static const FNodeClassMetadata Info = InitNodeInfo();
-		return Info;
-	}
+    const FNodeClassMetadata& FGranulator::GetNodeInfo()
+    {
+        auto InitNodeInfo = []() -> FNodeClassMetadata
+            {
+                FNodeClassMetadata Info;
+                Info.ClassName = { StandardNodes::Namespace, "Granulator", StandardNodes::AudioVariant };
+                Info.MajorVersion = 1;
+                Info.MinorVersion = 0;
+                Info.DisplayName = METASOUND_LOCTEXT("GranulatorNode_DisplayName", "Granulator");
+                Info.Description = METASOUND_LOCTEXT("GranulatorNode_Description", "A simple granular processor with randomized timing.");
+                Info.Author = PluginAuthor;
+                Info.PromptIfMissing = PluginNodeMissingPrompt;
+                Info.DefaultInterface = GetVertexInterface();
+                Info.CategoryHierarchy.Emplace(NodeCategories::Delays);
+                return Info;
+            };
 
-	TUniquePtr<IOperator> FGranulator::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
-	{
-		using namespace Granulator;
+        static const FNodeClassMetadata Info = InitNodeInfo();
+        return Info;
+    }
 
-		const FInputVertexInterfaceData& InputData = InParams.InputData;
+    TUniquePtr<IOperator> FGranulator::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
+    {
+        using namespace Granulator;
 
-		FAudioBufferReadRef AudioIn = InputData.GetOrConstructDataReadReference<FAudioBuffer>(METASOUND_GET_PARAM_NAME(InParamAudioInput), InParams.OperatorSettings);
-		int32 TapCount = *InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(InParamTapCount), InParams.OperatorSettings);
-		FFloatReadRef DryLevel = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamDryLevel), InParams.OperatorSettings);
-		FFloatReadRef WetLevel = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamWetLevel), InParams.OperatorSettings);
-		FFloatReadRef Feedback = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamFeedbackAmount), InParams.OperatorSettings);
-		FFloatReadRef LFOFrequency = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamLFOFrequency), InParams.OperatorSettings);
-		FFloatReadRef LFODepth = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamLFODepth), InParams.OperatorSettings);
-		FString Differentiator = *InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(InParamDifferentiator), InParams.OperatorSettings);
+        const FInputVertexInterfaceData& InputData = InParams.InputData;
 
-		return MakeUnique<FGranulator>(InParams, AudioIn, TapCount, DryLevel, WetLevel, Feedback, LFOFrequency, LFODepth, Differentiator);
-	}
+        FAudioBufferReadRef AudioIn = InputData.GetOrConstructDataReadReference<FAudioBuffer>(METASOUND_GET_PARAM_NAME(InParamAudioInput), InParams.OperatorSettings);
+        FFloatReadRef GrainSize = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamGrainSize), InParams.OperatorSettings);
 
-	class FCustomGranulatorNode : public FNodeFacade
-	{
-	public:
-		FCustomGranulatorNode(const FNodeInitData& InitData)
-			: FNodeFacade(InitData.InstanceName, InitData.InstanceID, TFacadeOperatorClass<FGranulator>())
-		{
-		}
-	};
+        return MakeUnique<FGranulator>(InParams, AudioIn, GrainSize);
+    }
 
-	METASOUND_REGISTER_NODE(FCustomGranulatorNode)
+    class FCustomGranulatorNode : public FNodeFacade
+    {
+    public:
+        FCustomGranulatorNode(const FNodeInitData& InitData)
+            : FNodeFacade(InitData.InstanceName, InitData.InstanceID, TFacadeOperatorClass<FGranulator>())
+        {
+        }
+    };
+
+    METASOUND_REGISTER_NODE(FCustomGranulatorNode)
 }
 
 #undef LOCTEXT_NAMESPACE
