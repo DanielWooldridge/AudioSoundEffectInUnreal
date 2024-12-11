@@ -17,12 +17,18 @@ namespace Metasound
     namespace Granulator
     {
         METASOUND_PARAM(InParamAudioInput, "In", "Audio input.")
-            METASOUND_PARAM(InParamGrainSize, "Grain Size", "Size of each grain in milliseconds.")
-            METASOUND_PARAM(InParamGrainOffsetPercent, "Grain Offset", "Offset between grains as a percentage of the grain size.")
-            METASOUND_PARAM(InParamPitchShift, "Pitch Shift", "Amount of pitch shift in semitones.")
-            METASOUND_PARAM(InParamRandomness, "Randomness", "Amount of randomness in grain selection (0-100%).")
+            METASOUND_PARAM(InParamArpRate, "Rate", "Rate of the arpeggiator in beats per second.")
+            METASOUND_PARAM(InParamScaleType, "Scale Type", "Choose between Major and Minor scale.")
+            METASOUND_PARAM(InParamRootNote, "Root Note", "Select the root note of the scale.")
+            METASOUND_PARAM(InParamRandomize, "Randomize", "Randomize the order of the notes in the arpeggio.")
             METASOUND_PARAM(OutParamAudio, "Out", "Audio output.")
     }
+
+    enum class EScaleType : uint8
+    {
+        Major,
+        Minor
+    };
 
     class FGranulator : public TExecutableOperator<FGranulator>
     {
@@ -33,10 +39,10 @@ namespace Metasound
 
         FGranulator(const FBuildOperatorParams& InParams,
             const FAudioBufferReadRef& InAudioInput,
-            const FFloatReadRef& InGrainSize,
-            const FFloatReadRef& InGrainOffsetPercent,
-            const FFloatReadRef& InPitchShift,
-            const FFloatReadRef& InRandomnessAmount);
+            const FFloatReadRef& InArpRate,
+            const FBoolReadRef& InRandomize,
+            const TDataReadReference<int32>& InScaleType,
+            const TDataReadReference<FString>& InRootNote);
 
         virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
         virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override;
@@ -45,55 +51,116 @@ namespace Metasound
     private:
         FAudioBufferReadRef AudioInput;
         FAudioBufferWriteRef AudioOutput;
-        FFloatReadRef GrainSize;           // Grain size in milliseconds
-        FFloatReadRef GrainOffsetPercent; // Grain offset as a percentage of grain size
-        FFloatReadRef PitchShift;         // Pitch shift in semitones
-        FFloatReadRef RandomnessAmount;   // Randomness control (0-100%)
+        FFloatReadRef ArpRate;          // Rate of the arpeggiator in beats per second
+        FBoolReadRef Randomize;         // Whether to randomize the arpeggio
+        TDataReadReference<int32> ScaleType; // Major or Minor
+        TDataReadReference<FString> RootNote; // Selected root note
 
-        TArray<float> Envelope;            // Envelope to smooth grains
-        int32 GrainSizeInFrames;           // Grain size in frames
+        TArray<int32> CurrentArpeggio;  // Current interval pattern (Major or Minor)
+        TArray<int32> FullArpeggio;     // Full arpeggio sequence including descending notes
+        float BaseFrequency;            // Base frequency for the root note
 
-        void InitializeEnvelope(int32 NumFrames);
+        int32 CurrentIndex;             // Current index in the pitch sequence
+        float Timer;                    // Timer to manage arpeggiator rate
+        float Interval;                 // Time interval between triggers
+        float SampleRate;               // Sample rate of the audio
+        float Phase;                    // Phase of the sine wave
+
+        void InitializeArpeggiator();
+        void BuildFullArpeggio();
+        void UpdateScale();
+        void RandomizeArpeggio();
+    };
+
+    TMap<FString, float> RootFrequencies = {
+        {"A", 220.0f},
+        {"B", 246.94f},
+        {"C", 261.63f},
+        {"D", 293.66f},
+        {"E", 329.63f},
+        {"F", 349.23f},
+        {"G", 392.00f}
     };
 
     FGranulator::FGranulator(const FBuildOperatorParams& InParams,
         const FAudioBufferReadRef& InAudioInput,
-        const FFloatReadRef& InGrainSize,
-        const FFloatReadRef& InGrainOffsetPercent,
-        const FFloatReadRef& InPitchShift,
-        const FFloatReadRef& InRandomnessAmount)
+        const FFloatReadRef& InArpRate,
+        const FBoolReadRef& InRandomize,
+        const TDataReadReference<int32>& InScaleType,
+        const TDataReadReference<FString>& InRootNote)
         : AudioInput(InAudioInput),
-        GrainSize(InGrainSize),
-        GrainOffsetPercent(InGrainOffsetPercent),
-        PitchShift(InPitchShift),
-        RandomnessAmount(InRandomnessAmount),
-        AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings))
+        ArpRate(InArpRate),
+        Randomize(InRandomize),
+        ScaleType(InScaleType),
+        RootNote(InRootNote),
+        AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings)),
+        CurrentIndex(0),
+        Timer(0.0f),
+        Phase(0.0f),
+        SampleRate(InParams.OperatorSettings.GetSampleRate())
     {
-        const float SampleRate = InParams.OperatorSettings.GetSampleRate();
-        GrainSizeInFrames = FMath::RoundToInt((*GrainSize / 1000.0f) * SampleRate);
-
-        // Initialize the envelope for smoothing
-        InitializeEnvelope(GrainSizeInFrames);
+        UpdateScale();
+        BuildFullArpeggio();
+        if (*Randomize)
+        {
+            RandomizeArpeggio();
+        }
+        InitializeArpeggiator();
     }
 
-    void FGranulator::InitializeEnvelope(int32 NumFrames)
+    void FGranulator::UpdateScale()
     {
-        Envelope.SetNum(NumFrames);
-        for (int32 i = 0; i < NumFrames; ++i)
+        if (*ScaleType == static_cast<int32>(EScaleType::Major))
         {
-            // Hanning window for smoothing
-            Envelope[i] = 0.5f * (1.0f - FMath::Cos(2.0f * PI * i / (NumFrames - 1)));
+            CurrentArpeggio = { 0, 4, 7, 12 }; // Major intervals
         }
+        else
+        {
+            CurrentArpeggio = { 0, 3, 7, 12 }; // Minor intervals
+        }
+
+        if (RootFrequencies.Contains(*RootNote))
+        {
+            BaseFrequency = RootFrequencies[*RootNote];
+        }
+        else
+        {
+            BaseFrequency = 220.0f; // Default to A
+        }
+    }
+
+    void FGranulator::BuildFullArpeggio()
+    {
+        FullArpeggio = CurrentArpeggio;
+        for (int32 i = CurrentArpeggio.Num() - 2; i > 0; --i)
+        {
+            FullArpeggio.Add(CurrentArpeggio[i]);
+        }
+    }
+
+    void FGranulator::RandomizeArpeggio()
+    {
+        FRandomStream RandomStream(FPlatformTime::Cycles());
+        for (int32 i = FullArpeggio.Num() - 1; i > 0; --i)
+        {
+            int32 SwapIndex = RandomStream.RandRange(0, i);
+            FullArpeggio.Swap(i, SwapIndex);
+        }
+    }
+
+    void FGranulator::InitializeArpeggiator()
+    {
+        Interval = 1.0f / *ArpRate; // Calculate interval based on rate
     }
 
     void FGranulator::BindInputs(FInputVertexInterfaceData& InOutVertexData)
     {
         using namespace Granulator;
         InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamAudioInput), AudioInput);
-        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamGrainSize), GrainSize);
-        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamGrainOffsetPercent), GrainOffsetPercent);
-        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamPitchShift), PitchShift);
-        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamRandomness), RandomnessAmount);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamArpRate), ArpRate);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamRandomize), Randomize);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamScaleType), ScaleType);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamRootNote), RootNote);
     }
 
     void FGranulator::BindOutputs(FOutputVertexInterfaceData& InOutVertexData)
@@ -104,54 +171,35 @@ namespace Metasound
 
     void FGranulator::Execute()
     {
-        const float* InputAudio = AudioInput->GetData();
-        float* OutputAudio = AudioOutput->GetData();
-        int32 NumFrames = AudioInput->Num();
+        const float SemitoneRatio = FMath::Pow(2.0f, 1.0f / 12.0f);
 
-        // Clear the output buffer
+        float* OutputAudio = AudioOutput->GetData();
+        int32 NumFrames = AudioOutput->Num();
+
         FMemory::Memset(OutputAudio, 0, NumFrames * sizeof(float));
 
-        // Calculate grain offset in frames
-        int32 GrainOffsetFrames = FMath::RoundToInt((GrainSizeInFrames * (*GrainOffsetPercent)) / 1000.0f);
+        float DeltaTime = 1.0f / SampleRate;
 
-        // Determine the randomness range
-        int32 MaxRandomOffset = FMath::RoundToInt((*RandomnessAmount / 1000.0f) * (NumFrames - GrainSizeInFrames));
-
-        int32 CurrentFrame = 0;
-
-        while (CurrentFrame < NumFrames)
+        for (int32 Frame = 0; Frame < NumFrames; ++Frame)
         {
-            // Add randomness to the grain start position
-            int32 RandomOffset = FMath::RandRange(0, MaxRandomOffset);
-            int32 GrainStart = FMath::Clamp(CurrentFrame + RandomOffset, 0, NumFrames - GrainSizeInFrames);
+            Timer += DeltaTime;
 
-            int32 GrainEnd = FMath::Min(GrainStart + GrainSizeInFrames, NumFrames);
-            int32 GrainLength = GrainEnd - GrainStart;
+            float CurrentFrequency = BaseFrequency * FMath::Pow(SemitoneRatio, FullArpeggio[CurrentIndex]);
+            float SineWave = FMath::Sin(2.0f * PI * Phase);
+            Phase += CurrentFrequency * DeltaTime;
 
-            for (int32 i = 0; i < GrainLength; ++i)
+            if (Phase > 1.0f)
             {
-                int32 GlobalIndex = CurrentFrame + i;
-
-                // Ensure we don't exceed the input buffer
-                if (GlobalIndex >= NumFrames) break;
-
-                // Calculate resampled input index
-                float ResampledIndex = GrainStart + i / FMath::Pow(2.0f, *PitchShift / 12.0f);
-                int32 InputIndex = FMath::Clamp(FMath::FloorToInt(ResampledIndex), 0, NumFrames - 2);
-                float InterpolationFactor = ResampledIndex - InputIndex;
-
-                // Perform linear interpolation
-                float Sample0 = InputAudio[InputIndex];
-                float Sample1 = InputAudio[InputIndex + 1];
-                float ResampledValue = FMath::Lerp(Sample0, Sample1, InterpolationFactor);
-
-                // Apply envelope
-                float EnvelopeValue = (i < Envelope.Num()) ? Envelope[i] : 1.0f;
-                OutputAudio[GlobalIndex] += ResampledValue * EnvelopeValue;
+                Phase -= 1.0f;
             }
 
-            // Advance to the next grain
-            CurrentFrame += GrainOffsetFrames;
+            OutputAudio[Frame] = SineWave;
+
+            if (Timer >= Interval)
+            {
+                Timer -= Interval;
+                CurrentIndex = (CurrentIndex + 1) % FullArpeggio.Num();
+            }
         }
     }
 
@@ -162,10 +210,10 @@ namespace Metasound
         static const FVertexInterface Interface(
             FInputVertexInterface(
                 TInputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamAudioInput)),
-                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamGrainSize), 50.0f), // Default grain size = 50ms
-                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamGrainOffsetPercent), 50.0f), // Default offset = 50%
-                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamPitchShift), 0.0f), // Default pitch shift = 0 semitones
-                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamRandomness), 0.0f) // Default randomness = 0%
+                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamArpRate), 2.0f), // Default rate = 2 beats per second
+                TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamRandomize), false), // Default randomize = false
+                TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamScaleType), static_cast<int32>(EScaleType::Major)), // Default Major scale
+                TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamRootNote), FString("A")) // Default root note = A
             ),
             FOutputVertexInterface(
                 TOutputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(OutParamAudio)) // Audio output
@@ -183,8 +231,8 @@ namespace Metasound
                 Info.ClassName = { StandardNodes::Namespace, "Granulator", StandardNodes::AudioVariant };
                 Info.MajorVersion = 1;
                 Info.MinorVersion = 0;
-                Info.DisplayName = METASOUND_LOCTEXT("GranulatorNode_DisplayName", "Granulator");
-                Info.Description = METASOUND_LOCTEXT("GranulatorNode_Description", "Splits audio into overlapping grains with randomness.");
+                Info.DisplayName = METASOUND_LOCTEXT("ArpeggiatorNode_DisplayName", "Arpeggiator");
+                Info.Description = METASOUND_LOCTEXT("ArpeggiatorNode_Description", "Plays input audio in an arpeggiated sequence with customizable scale, root note, and randomization.");
                 Info.Author = PluginAuthor;
                 Info.PromptIfMissing = PluginNodeMissingPrompt;
                 Info.DefaultInterface = GetVertexInterface();
@@ -203,12 +251,12 @@ namespace Metasound
         const FInputVertexInterfaceData& InputData = InParams.InputData;
 
         FAudioBufferReadRef AudioIn = InputData.GetOrConstructDataReadReference<FAudioBuffer>(METASOUND_GET_PARAM_NAME(InParamAudioInput), InParams.OperatorSettings);
-        FFloatReadRef GrainSize = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamGrainSize), InParams.OperatorSettings);
-        FFloatReadRef GrainOffsetPercent = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamGrainOffsetPercent), InParams.OperatorSettings);
-        FFloatReadRef PitchShift = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamPitchShift), InParams.OperatorSettings);
-        FFloatReadRef RandomnessAmount = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamRandomness), InParams.OperatorSettings);
+        FFloatReadRef ArpRate = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamArpRate), InParams.OperatorSettings);
+        FBoolReadRef Randomize = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(InParamRandomize), InParams.OperatorSettings);
+        TDataReadReference<int32> ScaleTypeRef = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(InParamScaleType), InParams.OperatorSettings);
+        TDataReadReference<FString> RootNoteRef = InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(InParamRootNote), InParams.OperatorSettings);
 
-        return MakeUnique<FGranulator>(InParams, AudioIn, GrainSize, GrainOffsetPercent, PitchShift, RandomnessAmount);
+        return MakeUnique<FGranulator>(InParams, AudioIn, ArpRate, Randomize, ScaleTypeRef, RootNoteRef);
     }
 
     class FCustomGranulatorNode : public FNodeFacade
@@ -224,3 +272,4 @@ namespace Metasound
 }
 
 #undef LOCTEXT_NAMESPACE
+
