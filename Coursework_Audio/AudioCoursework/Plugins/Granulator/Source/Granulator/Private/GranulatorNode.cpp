@@ -20,7 +20,9 @@ namespace Metasound
             METASOUND_PARAM(InParamArpRate, "Rate", "Rate of the arpeggiator in beats per second.")
             METASOUND_PARAM(InParamScaleType, "Scale Type", "Choose between Major and Minor scale.")
             METASOUND_PARAM(InParamRootNote, "Root Note", "Select the root note of the scale.")
+            METASOUND_PARAM(InParamAddLowOctave, "Add Low Octave", "Include the low octave in the arpeggio.");
             METASOUND_PARAM(InParamRandomize, "Randomize", "Randomize the order of the notes in the arpeggio.")
+            METASOUND_PARAM(InParamGlideTime, "Glide Time", "Time for glide/portamento in milliseconds.")
             METASOUND_PARAM(OutParamAudio, "Out", "Audio output.")
     }
 
@@ -42,7 +44,10 @@ namespace Metasound
             const FFloatReadRef& InArpRate,
             const FBoolReadRef& InRandomize,
             const TDataReadReference<int32>& InScaleType,
-            const TDataReadReference<FString>& InRootNote);
+            const TDataReadReference<FString>& InRootNote,
+            const FFloatReadRef& InGlideTime,
+            const FBoolReadRef& InLowOctave // Toggle for including the low octave
+        );
 
         virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
         virtual void BindOutputs(FOutputVertexInterfaceData& InOutVertexData) override;
@@ -55,6 +60,7 @@ namespace Metasound
         FBoolReadRef Randomize;         // Whether to randomize the arpeggio
         TDataReadReference<int32> ScaleType; // Major or Minor
         TDataReadReference<FString> RootNote; // Selected root note
+        FFloatReadRef GlideTime;       // Time for glide between notes in milliseconds
 
         TArray<int32> CurrentArpeggio;  // Current interval pattern (Major or Minor)
         TArray<int32> FullArpeggio;     // Full arpeggio sequence including descending notes
@@ -65,6 +71,9 @@ namespace Metasound
         float Interval;                 // Time interval between triggers
         float SampleRate;               // Sample rate of the audio
         float Phase;                    // Phase of the sine wave
+        float CurrentFrequency;         // Current frequency for smooth glide
+        FBoolReadRef AddLowOctave; // Toggle for including the low octave
+
 
         void InitializeArpeggiator();
         void BuildFullArpeggio();
@@ -87,16 +96,21 @@ namespace Metasound
         const FFloatReadRef& InArpRate,
         const FBoolReadRef& InRandomize,
         const TDataReadReference<int32>& InScaleType,
-        const TDataReadReference<FString>& InRootNote)
+        const TDataReadReference<FString>& InRootNote,
+        const FFloatReadRef& InGlideTime,
+        const FBoolReadRef& InAddLowOctave)
         : AudioInput(InAudioInput),
         ArpRate(InArpRate),
         Randomize(InRandomize),
         ScaleType(InScaleType),
         RootNote(InRootNote),
+        GlideTime(InGlideTime),
+        AddLowOctave(InAddLowOctave),
         AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings)),
         CurrentIndex(0),
         Timer(0.0f),
         Phase(0.0f),
+        CurrentFrequency(0.0f),
         SampleRate(InParams.OperatorSettings.GetSampleRate())
     {
         UpdateScale();
@@ -107,6 +121,7 @@ namespace Metasound
         }
         InitializeArpeggiator();
     }
+
 
     void FGranulator::UpdateScale()
     {
@@ -132,11 +147,20 @@ namespace Metasound
     void FGranulator::BuildFullArpeggio()
     {
         FullArpeggio = CurrentArpeggio;
+
+        // Add the low octave if enabled
+        if (*AddLowOctave)
+        {
+            FullArpeggio.Insert(-12, 0); // Insert -12 (one octave below root) at the start
+        }
+
+        // Add descending notes to the arpeggio
         for (int32 i = CurrentArpeggio.Num() - 2; i > 0; --i)
         {
             FullArpeggio.Add(CurrentArpeggio[i]);
         }
     }
+
 
     void FGranulator::RandomizeArpeggio()
     {
@@ -161,7 +185,10 @@ namespace Metasound
         InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamRandomize), Randomize);
         InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamScaleType), ScaleType);
         InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamRootNote), RootNote);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamGlideTime), GlideTime);
+        InOutVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InParamAddLowOctave), AddLowOctave);
     }
+
 
     void FGranulator::BindOutputs(FOutputVertexInterfaceData& InOutVertexData)
     {
@@ -179,12 +206,26 @@ namespace Metasound
         FMemory::Memset(OutputAudio, 0, NumFrames * sizeof(float));
 
         float DeltaTime = 1.0f / SampleRate;
+        float GlideIncrement = 0.0f;
+
+        // Update the interval dynamically based on ArpRate
+        Interval = 1.0f / *ArpRate;
 
         for (int32 Frame = 0; Frame < NumFrames; ++Frame)
         {
             Timer += DeltaTime;
 
-            float CurrentFrequency = BaseFrequency * FMath::Pow(SemitoneRatio, FullArpeggio[CurrentIndex]);
+            float TargetFrequency = BaseFrequency * FMath::Pow(SemitoneRatio, FullArpeggio[CurrentIndex]);
+            if (CurrentFrequency != TargetFrequency)
+            {
+                GlideIncrement = (TargetFrequency - CurrentFrequency) / ((*GlideTime / 1000.0f) * SampleRate);
+                CurrentFrequency += GlideIncrement;
+                if (FMath::Abs(CurrentFrequency - TargetFrequency) < FMath::Abs(GlideIncrement))
+                {
+                    CurrentFrequency = TargetFrequency;
+                }
+            }
+
             float SineWave = FMath::Sin(2.0f * PI * Phase);
             Phase += CurrentFrequency * DeltaTime;
 
@@ -213,7 +254,9 @@ namespace Metasound
                 TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamArpRate), 2.0f), // Default rate = 2 beats per second
                 TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamRandomize), false), // Default randomize = false
                 TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamScaleType), static_cast<int32>(EScaleType::Major)), // Default Major scale
-                TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamRootNote), FString("A")) // Default root note = A
+                TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamRootNote), FString("A")), // Default root note = A
+                TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamGlideTime), 100.0f), // Default glide time = 100ms
+                TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(InParamAddLowOctave), false) // Default AddLowOctave = false
             ),
             FOutputVertexInterface(
                 TOutputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(OutParamAudio)) // Audio output
@@ -232,10 +275,10 @@ namespace Metasound
                 Info.MajorVersion = 1;
                 Info.MinorVersion = 0;
                 Info.DisplayName = METASOUND_LOCTEXT("ArpeggiatorNode_DisplayName", "Arpeggiator");
-                Info.Description = METASOUND_LOCTEXT("ArpeggiatorNode_Description", "Plays input audio in an arpeggiated sequence with customizable scale, root note, and randomization.");
+                Info.Description = METASOUND_LOCTEXT("ArpeggiatorNode_Description", "Plays input audio in an arpeggiated sequence with customizable scale, root note, randomization, and glide.");
                 Info.Author = PluginAuthor;
                 Info.PromptIfMissing = PluginNodeMissingPrompt;
-                Info.DefaultInterface = GetVertexInterface();
+                Info.DefaultInterface = GetVertexInterface();                
                 Info.CategoryHierarchy.Emplace(NodeCategories::Delays);
                 return Info;
             };
@@ -255,9 +298,12 @@ namespace Metasound
         FBoolReadRef Randomize = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(InParamRandomize), InParams.OperatorSettings);
         TDataReadReference<int32> ScaleTypeRef = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(InParamScaleType), InParams.OperatorSettings);
         TDataReadReference<FString> RootNoteRef = InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(InParamRootNote), InParams.OperatorSettings);
+        FFloatReadRef GlideTime = InputData.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InParamGlideTime), InParams.OperatorSettings);
+        FBoolReadRef AddLowOctave = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(InParamAddLowOctave), InParams.OperatorSettings);
 
-        return MakeUnique<FGranulator>(InParams, AudioIn, ArpRate, Randomize, ScaleTypeRef, RootNoteRef);
+        return MakeUnique<FGranulator>(InParams, AudioIn, ArpRate, Randomize, ScaleTypeRef, RootNoteRef, GlideTime, AddLowOctave);
     }
+
 
     class FCustomGranulatorNode : public FNodeFacade
     {
