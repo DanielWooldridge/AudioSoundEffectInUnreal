@@ -35,9 +35,69 @@
     <Filter Include="Plugins">
       <UniqueIdentifier>{BB38096A-B391-30DC-A0D4-4F3EA6B44507}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Plugins\Arpeggiator">
+      <UniqueIdentifier>{BEC0AF8B-5C23-3BD5-A6BD-A078F0434D81}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\Arpeggiator\Source">
+      <UniqueIdentifier>{7A8DC137-F7E1-3496-A76E-45A7B299BCFB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Plugins\Arpeggiator\Source\Arpeggiator">
+      <UniqueIdentifier>{30B7879A-445F-37EC-A033-EC454C7B09B0}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\Arpeggiator\Source\Arpeggiator\Arpeggiator.Build.cs">
+      <Filter>Plugins\Arpeggiator\Source\Arpeggiator</Filter>
+    </None>
+    <Filter Include="Plugins\Arpeggiator\Source\Arpeggiator\Private">
+      <UniqueIdentifier>{4376B861-E8DE-3476-BEAE-B40E3914C56C}</UniqueIdentifier>
+    </Filter>
+    <ClCompile Include="..\..\Plugins\Arpeggiator\Source\Arpeggiator\Private\Arpeggiator.cpp">
+      <Filter>Plugins\Arpeggiator\Source\Arpeggiator\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Plugins\Arpeggiator\Source\Arpeggiator\Private\ArpeggiatorBPLibrary.cpp">
+      <Filter>Plugins\Arpeggiator\Source\Arpeggiator\Private</Filter>
+    </ClCompile>
+    <Filter Include="Plugins\Arpeggiator\Source\Arpeggiator\Public">
+      <UniqueIdentifier>{C3A21FCB-8CED-392D-A06B-3C09376CC47B}</UniqueIdentifier>
+    </Filter>
+    <ClInclude Include="..\..\Plugins\Arpeggiator\Source\Arpeggiator\Public\Arpeggiator.h">
+      <Filter>Plugins\Arpeggiator\Source\Arpeggiator\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Plugins\Arpeggiator\Source\Arpeggiator\Public\ArpeggiatorBPLibrary.h">
+      <Filter>Plugins\Arpeggiator\Source\Arpeggiator\Public</Filter>
+    </ClInclude>
+    <None Include="..\..\Plugins\Arpeggiator\Arpeggiator.uplugin">
+      <Filter>Plugins\Arpeggiator</Filter>
+    </None>
+    <Filter Include="Plugins\Arpeggiator\Resources">
+      <UniqueIdentifier>{CABEF5A7-25AF-3F84-B626-FF5326CDC33D}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\Arpeggiator\Resources\Icon128.png">
+      <Filter>Plugins\Arpeggiator\Resources</Filter>
+    </None>
     <Filter Include="Plugins\Granulator">
       <UniqueIdentifier>{009DA974-07B3-315B-A782-5D93DE89135A}</UniqueIdentifier>
     </Filter>
+    <None Include="..\..\Plugins\Granulator\Granulator.uplugin">
+      <Filter>Plugins\Granulator</Filter>
+    </None>
+    <Filter Include="Plugins\Granulator\Resources">
+      <UniqueIdentifier>{3C88A3B4-52C3-3467-A120-4F6BF237EE6D}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\Granulator\Resources\Icon128.png">
+      <Filter>Plugins\Granulator\Resources</Filter>
+    </None>
+    <Filter Include="Plugins\TapDelay">
+      <UniqueIdentifier>{0149B2E5-149F-3D4A-9B54-0E5F15E9C37B}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\TapDelay\TapDelay.uplugin">
+      <Filter>Plugins\TapDelay</Filter>
+    </None>
+    <Filter Include="Plugins\TapDelay\Resources">
+      <UniqueIdentifier>{66B6A494-1923-3802-9A98-D7E06975679E}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Plugins\TapDelay\Resources\Icon128.png">
+      <Filter>Plugins\TapDelay\Resources</Filter>
+    </None>
     <Filter Include="Plugins\Granulator\Source">
       <UniqueIdentifier>{7307E8CB-0164-31DE-B60E-DA855B206285}</UniqueIdentifier>
     </Filter>
@@ -68,27 +128,6 @@
     <ClInclude Include="..\..\Plugins\Granulator\Source\Granulator\Public\GranulatorBPLibrary.h">
       <Filter>Plugins\Granulator\Source\Granulator\Public</Filter>
     </ClInclude>
-    <None Include="..\..\Plugins\Granulator\Granulator.uplugin">
-      <Filter>Plugins\Granulator</Filter>
-    </None>
-    <Filter Include="Plugins\Granulator\Resources">
-      <UniqueIdentifier>{3C88A3B4-52C3-3467-A120-4F6BF237EE6D}</UniqueIdentifier>
-    </Filter>
-    <None Include="..\..\Plugins\Granulator\Resources\Icon128.png">
-      <Filter>Plugins\Granulator\Resources</Filter>
-    </None>
-    <Filter Include="Plugins\TapDelay">
-      <UniqueIdentifier>{0149B2E5-149F-3D4A-9B54-0E5F15E9C37B}</UniqueIdentifier>
-    </Filter>
-    <None Include="..\..\Plugins\TapDelay\TapDelay.uplugin">
-      <Filter>Plugins\TapDelay</Filter>
-    </None>
-    <Filter Include="Plugins\TapDelay\Resources">
-      <UniqueIdentifier>{66B6A494-1923-3802-9A98-D7E06975679E}</UniqueIdentifier>
-    </Filter>
-    <None Include="..\..\Plugins\TapDelay\Resources\Icon128.png">
-      <Filter>Plugins\TapDelay\Resources</Filter>
-    </None>
     <Filter Include="Plugins\TapDelay\Source">
       <UniqueIdentifier>{31DC931F-2E8A-30EC-B6A7-C1A21466078F}</UniqueIdentifier>
     </Filter>

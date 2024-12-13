@@ -24,6 +24,10 @@
 		{
 			"Name": "CustomGranulator",
 			"Enabled": false
+		},
+		{
+			"Name": "Granulator",
+			"Enabled": false
 		}
 	]
 }
