@@ -26,12 +26,14 @@ namespace Metasound
         METASOUND_PARAM(OutParamAudio, "Out", "Audio output.");
     }
 
+    // enum for the different types of scale
     enum class EScaleType : uint8
     {
         Major,
         Minor
     };
 
+    // enum for the diffferent types of style
     enum class EArpeggioStyle : uint8
     {
         Up,
@@ -92,6 +94,7 @@ namespace Metasound
         void ApplyStyle(EArpeggioStyle Style);
     };
 
+    // map of all the frequencies of notes
     TMap<FString, float> RootFrequencies = {
         {"A", 220.0f},
         {"B", 246.94f},
@@ -134,6 +137,7 @@ namespace Metasound
         InitializeArpeggiator();
     }
 
+    // Creates scales for minor and major, and defaults the scale to the A scale
     void FArpeggiator::UpdateScale(const FString& RootNote)
     {
         if (*ScaleType == static_cast<int32>(EScaleType::Major))
@@ -161,6 +165,7 @@ namespace Metasound
         ApplyStyle(static_cast<EArpeggioStyle>(*ArpeggioStyle));
     }
 
+    // Predefined values that the user can choose on how the notes are played in the chord
     void FArpeggiator::ApplyStyle(EArpeggioStyle Style)
     {
         TArray<int32> StyledArpeggio;
@@ -189,7 +194,7 @@ namespace Metasound
             StyledArpeggio = { 2, 1, 3, 0, 3, 1 };
             break;
         default:
-            StyledArpeggio = { 0, 1, 2, 3 }; // Default to "Up" style
+            StyledArpeggio = { 0, 1, 2, 3 }; // default to the up style
             break;
         }
 
@@ -199,10 +204,10 @@ namespace Metasound
         }
     }
 
-
+    // Initalises how fast the intervals are between the notes
     void FArpeggiator::InitializeArpeggiator()
     {
-        Interval = 1.0f / *ArpRate; // Calculate interval based on rate
+        Interval = 1.0f / *ArpRate; 
     }
 
     void FArpeggiator::BindInputs(FInputVertexInterfaceData& InOutVertexData)
@@ -225,6 +230,8 @@ namespace Metasound
 
     void FArpeggiator::Execute()
     {
+
+        // pitch calculation formula
         const float SemitoneRatio = FMath::Pow(2.0f, 1.0f / 12.0f);
 
         float* OutputAudio = AudioOutput->GetData();
@@ -232,19 +239,26 @@ namespace Metasound
 
         FMemory::Memset(OutputAudio, 0, NumFrames * sizeof(float));
 
+        // set up deltatime to be per audio frame and the glide increment variable
         float DeltaTime = 1.0f / SampleRate;
         float GlideIncrement = 0.0f;
 
+        // set interval here as well so it can be changed in realtime through node
         Interval = 1.0f / *ArpRate;
 
+        // for loop for each audio frame
         for (int32 Frame = 0; Frame < NumFrames; ++Frame)
         {
+
             Timer += DeltaTime;
 
+            // target for the next frequency calculation, e.g root note to the 3rd
             float TargetFrequency = BaseFrequency * FMath::Pow(SemitoneRatio, FullArpeggio[CurrentIndex]);
 
+            // portamento implementation, if it is not the target freq
             if (CurrentFrequency != TargetFrequency)
             {
+                // increase the current freq until it hits the target freq
                 GlideIncrement = (TargetFrequency - CurrentFrequency) / ((*GlideTime / 1000.0f) * SampleRate);
                 CurrentFrequency += GlideIncrement;
                 if (FMath::Abs(CurrentFrequency - TargetFrequency) < FMath::Abs(GlideIncrement))
@@ -253,29 +267,36 @@ namespace Metasound
                 }
             }
 
+            // new sine wave at the target freq (the current freq now)
             float SineWave = FMath::Sin(2.0f * PI * Phase);
             Phase += CurrentFrequency * DeltaTime;
 
+            // reset the phasse if its out of bounds
             if (Phase > 1.0f)
             {
                 Phase -= 1.0f;
             }
 
+            // output new sine wave
             OutputAudio[Frame] += SineWave;
 
+            // arpeggio note switching and each time on the note
             if (Timer >= Interval)
             {
+                // set timer and move note
                 Timer -= Interval;
                 CurrentIndex = (CurrentIndex + 1) % FullArpeggio.Num();
 
+                // check if chord in sequence is complete
                 if (CurrentIndex == 0)
                 {
                     CurrentRepeatCount++;
                     if (CurrentRepeatCount >= *ChordRepeatCount)
                     {
+                        // switch to the next root note if needed, including updating scale and rebuilding the arpeggio pattern
                         CurrentRepeatCount = 0;
                         CurrentChordIndex = (CurrentChordIndex + 1) % RootNotesSequence->Num();
-                        UpdateScale((*RootNotesSequence)[CurrentChordIndex]);
+                        UpdateScale((*RootNotesSequence)[CurrentChordIndex]); 
                         BuildFullArpeggio();
                     }
                 }

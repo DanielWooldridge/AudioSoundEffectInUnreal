@@ -86,9 +86,11 @@ namespace Metasound
 		AudioOutput(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings)),
 		Differentiator(InDifferentiator)
 	{
+		// delay buffers and base delay time
 		const float SampleRate = InParams.OperatorSettings.GetSampleRate();
 		for (int32 TapIndex = 0; TapIndex < TapCount; ++TapIndex)
 		{
+			// delay time for each tap and initailises buffers with max 5 seconds to match fireball sound
 			float TapDelayTime = 5.0f * ((TapIndex + 1) / static_cast<float>(TapCount));
 			Audio::FDelay NewDelay;
 			NewDelay.Init(SampleRate, 5.0f);
@@ -132,33 +134,35 @@ namespace Metasound
 
 		const float SampleRate = 48000.0f;
 
+		// iterawte over the audio buffer
 		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
 		{
 			float DrySignal = DryLevelValue * InputAudio[FrameIndex];
 			float WetSignal = 0.0f;
 
+			// For loop for tap delay processes
 			for (int32 TapIndex = 0; TapIndex < DelayBuffers.Num(); ++TapIndex)
 			{
 				Audio::FDelay& DelayBuffer = DelayBuffers[TapIndex];
 
+				// Modulation value of the osc.
 				float LFOValue = LFODepthValue * FMath::Sin(2.0f * PI * LFOPhases[TapIndex]);
 
+				// update the osc. phase
 				LFOPhases[TapIndex] += LFOFrequencyValue / SampleRate;
 				if (LFOPhases[TapIndex] >= 1.0f)
 				{
 					LFOPhases[TapIndex] -= 1.0f;
 				}
 
+				// Apply osc. modulated delay time
 				float ModulatedDelayTime = BaseDelayTimes[TapIndex] + LFOValue;
 				DelayBuffer.SetDelayMsec(FMath::Clamp(ModulatedDelayTime, 0.0f, 5000.0f));
 
+				// process final sample ready for output
 				float DelayedSample = DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex] + FeedbackValue * WetSignal);
 				WetSignal += DelayedSample;
-
-				//UE_LOG(LogTemp, Warning, TEXT("TapIndex: %d, LFOValue: %f, ModulatedDelayTime: %f"), TapIndex, LFOValue, ModulatedDelayTime);
-
 			}
-
 			OutputAudio[FrameIndex] = DrySignal + WetLevelValue * WetSignal;
 		}
 	}
